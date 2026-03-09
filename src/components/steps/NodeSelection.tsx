@@ -55,7 +55,24 @@ export default function NodeSelection({ data, update }: NodeSelectionProps) {
 
       update({ nodes: nodeList, nodeVerification: verification });
     } catch {
-      // backend not reachable
+      if (data.nodes.length === 0) {
+        const placeholder: ManagedNode = {
+          id: 'localhost',
+          name: 'localhost',
+          ansible_host: '127.0.0.1',
+          ansible_user: 'root',
+          has_password: false,
+          has_sudo_password: false,
+          has_ssh_key: false,
+          roles: null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+        update({
+          nodes: [placeholder],
+          nodeVerification: { localhost: 'pending' },
+        });
+      }
     } finally {
       setLoading(false);
     }
