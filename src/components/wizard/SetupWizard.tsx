@@ -6,6 +6,8 @@ import PreflightChecks from '../steps/PreflightChecks';
 import RoleAssignment from '../steps/RoleAssignment';
 import Deployment from '../steps/Deployment';
 import { useWizardState } from '../../hooks/useWizardState';
+import { useHealthCheck } from '../../hooks/useHealthCheck';
+import AlertBanner from '../shared/AlertBanner';
 
 const STEPS: StepDef[] = [
   { label: 'Nodes', description: 'Select hosts' },
@@ -15,6 +17,7 @@ const STEPS: StepDef[] = [
 ];
 
 export default function SetupWizard() {
+  const health = useHealthCheck();
   const { data, update, setStep } = useWizardState();
   const { currentStep } = data;
 
@@ -91,6 +94,8 @@ export default function SetupWizard() {
           </div>
         </div>
       </header>
+
+      <AlertBanner health={health} />
 
       <div className="max-w-4xl mx-auto w-full flex-1 flex flex-col">
         <Stepper steps={STEPS} currentStep={currentStep} />
