@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import type { ManagedNode, CheckResult } from '../types/api';
+import type { ManagedNode, CheckResult, ConfigDefaultApplied } from '../types/api';
 
 export interface WizardData {
   currentStep: number;
@@ -9,6 +9,10 @@ export interface WizardData {
   preflightResults: CheckResult[];
   preflightPassed: boolean;
   roleAssignments: Record<string, string[]>;
+  onrampConfig: Record<string, unknown> | null;
+  configDefaultsApplied: ConfigDefaultApplied[];
+  configDefaultsErrors: string[];
+  defaultsLoading: boolean;
   deploymentStarted: boolean;
 }
 
@@ -21,6 +25,10 @@ function defaultState(initialStep: number): WizardData {
     preflightResults: [],
     preflightPassed: false,
     roleAssignments: {},
+    onrampConfig: null,
+    configDefaultsApplied: [],
+    configDefaultsErrors: [],
+    defaultsLoading: false,
     deploymentStarted: false,
   };
 }

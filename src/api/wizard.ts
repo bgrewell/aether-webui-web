@@ -33,5 +33,6 @@ export function resetWizard() {
 
 export function getFirstIncompleteStep(state: WizardState): number {
   const idx = STEP_ORDER.findIndex((s) => !state.steps[s]?.completed);
-  return idx === -1 ? 0 : idx;
+  if (idx === -1) return 0;
+  return idx >= 3 ? idx + 1 : idx;
 }

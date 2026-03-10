@@ -5,11 +5,12 @@ import WizardNav from './WizardNav';
 import NodeSelection from '../steps/NodeSelection';
 import PreflightChecks from '../steps/PreflightChecks';
 import RoleAssignment from '../steps/RoleAssignment';
+import ConfigReview from '../steps/ConfigReview';
 import Deployment from '../steps/Deployment';
 import { useWizardState } from '../../hooks/useWizardState';
 import { useHealthCheck } from '../../hooks/useHealthCheck';
 import AlertBanner from '../shared/AlertBanner';
-import { syncInventory } from '../../api/onramp';
+import { syncInventory, applyConfigDefaults } from '../../api/onramp';
 import { listNodes } from '../../api/nodes';
 import { markStepComplete } from '../../api/wizard';
 
@@ -17,6 +18,7 @@ const STEPS: StepDef[] = [
   { label: 'Nodes', description: 'Select hosts' },
   { label: 'Preflight', description: 'Check readiness' },
   { label: 'Roles', description: 'Assign roles' },
+  { label: 'Config', description: 'Review settings' },
   { label: 'Deploy', description: 'Install stack' },
 ];
 
@@ -67,11 +69,13 @@ export default function SetupWizard({ initialStep = 0 }: SetupWizardProps) {
       case 2:
         return true;
       case 3:
+        return !data.defaultsLoading;
+      case 4:
         return false;
       default:
         return false;
     }
-  }, [currentStep, includedNodes, data.preflightPassed]);
+  }, [currentStep, includedNodes, data.preflightPassed, data.defaultsLoading]);
 
   const handleBack = useCallback(() => {
     if (currentStep > 0) setStep(currentStep - 1);
@@ -88,14 +92,38 @@ export default function SetupWizard({ initialStep = 0 }: SetupWizardProps) {
         await markStepComplete('preflight');
       } else if (currentStep === 2) {
         await markStepComplete('roles');
+      } else if (currentStep === 3) {
+        try { await markStepComplete('deployment'); } catch { /* no config step in backend */ }
       }
     } catch {
       // proceed even if marking fails
     } finally {
       setContinueLoading(false);
     }
+
     setStep(currentStep + 1);
-  }, [currentStep, setStep]);
+
+    if (currentStep === 2) {
+      update({ defaultsLoading: true, configDefaultsErrors: [], configDefaultsApplied: [] });
+      applyConfigDefaults()
+        .then((result) => {
+          update({
+            onrampConfig: result.config,
+            configDefaultsApplied: result.applied,
+            configDefaultsErrors: result.errors,
+            defaultsLoading: false,
+          });
+        })
+        .catch((err) => {
+          update({
+            configDefaultsErrors: [
+              err instanceof Error ? err.message : 'Failed to compute config defaults',
+            ],
+            defaultsLoading: false,
+          });
+        });
+    }
+  }, [currentStep, setStep, update]);
 
   const handleDeployComplete = useCallback(async () => {
     try {
@@ -106,15 +134,6 @@ export default function SetupWizard({ initialStep = 0 }: SetupWizardProps) {
     navigate('/', { replace: true });
   }, [navigate]);
 
-  const continueLabel = useMemo(() => {
-    if (currentStep === 2) {
-      const allRoles = includedNodes.flatMap((n) => data.roleAssignments[n.id] ?? []);
-      if (allRoles.length === 0) return 'Skip to Dashboard';
-      return 'Deploy';
-    }
-    return undefined;
-  }, [currentStep, data.roleAssignments, includedNodes]);
-
   const renderStep = () => {
     switch (currentStep) {
       case 0:
@@ -124,6 +143,8 @@ export default function SetupWizard({ initialStep = 0 }: SetupWizardProps) {
       case 2:
         return <RoleAssignment data={data} update={update} />;
       case 3:
+        return <ConfigReview data={data} update={update} />;
+      case 4:
         return <Deployment data={data} update={update} onDeployComplete={handleDeployComplete} />;
       default:
         return null;
@@ -157,14 +178,13 @@ export default function SetupWizard({ initialStep = 0 }: SetupWizardProps) {
         <div className="flex-1 px-4 pb-4">
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col min-h-[480px]">
             <div className="flex-1 p-6 sm:p-8">{renderStep()}</div>
-            {currentStep < 3 && (
+            {currentStep < STEPS.length - 1 && (
               <WizardNav
                 currentStep={currentStep}
                 totalSteps={STEPS.length}
                 canContinue={canContinue}
                 onBack={handleBack}
                 onContinue={handleContinue}
-                continueLabel={continueLabel}
                 loading={continueLoading}
               />
             )}

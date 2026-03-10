@@ -103,3 +103,31 @@ export interface ApiError {
   instance?: string;
   errors?: { location?: string; message?: string; value?: unknown }[];
 }
+
+export interface NodeFacts {
+  node_id: string;
+  node_name: string;
+  default_iface: string;
+  default_ip: string;
+  default_subnet: string;
+  interfaces: {
+    name: string;
+    addresses: string[];
+    mac: string;
+    is_up: boolean;
+  }[];
+  gathered_at: string;
+}
+
+export interface ConfigDefaultApplied {
+  field: string;
+  value: string;
+  explanation: string;
+  source_node: string;
+}
+
+export interface ConfigDefaultsResult {
+  applied: ConfigDefaultApplied[];
+  errors: string[];
+  config: Record<string, unknown>;
+}

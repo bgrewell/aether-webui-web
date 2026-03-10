@@ -1,5 +1,5 @@
-import { get, post } from './client';
-import type { OnRampTask, Component, ComponentStateItem, InventorySyncResult } from '../types/api';
+import { get, post, patch as patchRequest } from './client';
+import type { OnRampTask, Component, ComponentStateItem, InventorySyncResult, ConfigDefaultsResult } from '../types/api';
 
 export function listComponents() {
   return get<Component[] | null>('/onramp/components');
@@ -25,4 +25,17 @@ export function listComponentStates() {
 
 export function syncInventory() {
   return post<InventorySyncResult>('/onramp/inventory/sync');
+}
+
+export function applyConfigDefaults(refresh = false) {
+  const qs = refresh ? '?refresh=true' : '';
+  return post<ConfigDefaultsResult>(`/onramp/config/defaults${qs}`);
+}
+
+export function getOnrampConfig() {
+  return get<Record<string, unknown>>('/onramp/config');
+}
+
+export function patchOnrampConfig(body: Record<string, unknown>) {
+  return patchRequest<Record<string, unknown>>('/onramp/config', body);
 }
