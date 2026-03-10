@@ -21,9 +21,10 @@ type StepStatus = 'pending' | 'running' | 'succeeded' | 'failed';
 interface DeploymentProps {
   data: WizardData;
   update: (partial: Partial<WizardData>) => void;
+  onDeployComplete?: () => void;
 }
 
-export default function Deployment({ data, update }: DeploymentProps) {
+export default function Deployment({ data, update, onDeployComplete }: DeploymentProps) {
   const excluded = useMemo(() => new Set(data.excludedNodeIds), [data.excludedNodeIds]);
   const includedNodes = useMemo(
     () => data.nodes.filter((n) => !excluded.has(n.id)),
@@ -152,9 +153,7 @@ export default function Deployment({ data, update }: DeploymentProps) {
           to the dashboard.
         </p>
         <button
-          onClick={() => {
-            window.location.href = '/';
-          }}
+          onClick={() => onDeployComplete?.()}
           className="mt-6 flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-white bg-teal-600 rounded-lg hover:bg-teal-700 transition-colors"
         >
           Go to Dashboard
@@ -276,9 +275,7 @@ export default function Deployment({ data, update }: DeploymentProps) {
             </p>
           </div>
           <button
-            onClick={() => {
-              window.location.href = '/';
-            }}
+            onClick={() => onDeployComplete?.()}
             className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-teal-600 rounded-lg hover:bg-teal-700 transition-colors"
           >
             Go to Dashboard

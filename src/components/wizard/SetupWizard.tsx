@@ -1,4 +1,5 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Stepper, { type StepDef } from './Stepper';
 import WizardNav from './WizardNav';
 import NodeSelection from '../steps/NodeSelection';
@@ -9,6 +10,8 @@ import { useWizardState } from '../../hooks/useWizardState';
 import { useHealthCheck } from '../../hooks/useHealthCheck';
 import AlertBanner from '../shared/AlertBanner';
 import { syncInventory } from '../../api/onramp';
+import { listNodes } from '../../api/nodes';
+import { markStepComplete } from '../../api/wizard';
 
 const STEPS: StepDef[] = [
   { label: 'Nodes', description: 'Select hosts' },
@@ -17,11 +20,38 @@ const STEPS: StepDef[] = [
   { label: 'Deploy', description: 'Install stack' },
 ];
 
-export default function SetupWizard() {
+interface SetupWizardProps {
+  initialStep?: number;
+}
+
+export default function SetupWizard({ initialStep = 0 }: SetupWizardProps) {
   const health = useHealthCheck();
-  const { data, update, setStep } = useWizardState();
+  const navigate = useNavigate();
+  const { data, update, setStep } = useWizardState(initialStep);
   const { currentStep } = data;
   const [continueLoading, setContinueLoading] = useState(false);
+
+  useEffect(() => {
+    if (initialStep > 0 && data.nodes.length === 0) {
+      listNodes()
+        .then((nodes) => {
+          const nodeList = nodes ?? [];
+          const roleAssignments: Record<string, string[]> = {};
+          nodeList.forEach((n) => {
+            if (n.roles && n.roles.length > 0) {
+              roleAssignments[n.id] = n.roles;
+            }
+          });
+          const verification: Record<string, 'pending' | 'verified' | 'failed'> = {};
+          nodeList.forEach((n) => {
+            verification[n.id] = 'pending';
+          });
+          update({ nodes: nodeList, nodeVerification: verification, roleAssignments });
+        })
+        .catch(() => {});
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const includedNodes = useMemo(() => {
     const excl = new Set(data.excludedNodeIds);
@@ -48,20 +78,33 @@ export default function SetupWizard() {
   }, [currentStep, setStep]);
 
   const handleContinue = useCallback(async () => {
-    if (currentStep < STEPS.length - 1) {
+    if (currentStep >= STEPS.length - 1) return;
+    setContinueLoading(true);
+    try {
       if (currentStep === 0) {
-        setContinueLoading(true);
-        try {
-          await syncInventory();
-        } catch {
-          // proceed even if sync fails
-        } finally {
-          setContinueLoading(false);
-        }
+        try { await syncInventory(); } catch { /* continue anyway */ }
+        await markStepComplete('nodes');
+      } else if (currentStep === 1) {
+        await markStepComplete('preflight');
+      } else if (currentStep === 2) {
+        await markStepComplete('roles');
       }
-      setStep(currentStep + 1);
+    } catch {
+      // proceed even if marking fails
+    } finally {
+      setContinueLoading(false);
     }
+    setStep(currentStep + 1);
   }, [currentStep, setStep]);
+
+  const handleDeployComplete = useCallback(async () => {
+    try {
+      await markStepComplete('deployment');
+    } catch {
+      // proceed to dashboard regardless
+    }
+    navigate('/', { replace: true });
+  }, [navigate]);
 
   const continueLabel = useMemo(() => {
     if (currentStep === 2) {
@@ -81,7 +124,7 @@ export default function SetupWizard() {
       case 2:
         return <RoleAssignment data={data} update={update} />;
       case 3:
-        return <Deployment data={data} update={update} />;
+        return <Deployment data={data} update={update} onDeployComplete={handleDeployComplete} />;
       default:
         return null;
     }

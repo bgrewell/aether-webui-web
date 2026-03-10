@@ -1,7 +1,10 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import SetupWizard from './components/wizard/SetupWizard';
 import AlertBanner from './components/shared/AlertBanner';
 import { useHealthCheck } from './hooks/useHealthCheck';
+import { getWizardState, getFirstIncompleteStep } from './api/wizard';
+import { Loader2 } from 'lucide-react';
 
 function DashboardPlaceholder() {
   const health = useHealthCheck();
@@ -29,26 +32,54 @@ function DashboardPlaceholder() {
       <div className="flex-1 flex items-center justify-center">
         <div className="text-center">
           <p className="text-gray-500">Dashboard coming soon.</p>
-          <a
-            href="/setup"
-            className="inline-block mt-4 px-4 py-2 text-sm font-medium text-teal-700 bg-teal-50 border border-teal-200 rounded-lg hover:bg-teal-100 transition-colors"
-          >
-            Go to Setup Wizard
-          </a>
         </div>
       </div>
     </div>
   );
 }
 
+function AppRoutes() {
+  const navigate = useNavigate();
+  const [status, setStatus] = useState<'loading' | 'ready'>('loading');
+  const [initialStep, setInitialStep] = useState(0);
+
+  useEffect(() => {
+    getWizardState()
+      .then((state) => {
+        if (!state.completed) {
+          setInitialStep(getFirstIncompleteStep(state));
+          navigate('/setup', { replace: true });
+        }
+        setStatus('ready');
+      })
+      .catch(() => {
+        navigate('/setup', { replace: true });
+        setStatus('ready');
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  if (status === 'loading') {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <Loader2 size={28} className="text-teal-600 animate-spin" />
+      </div>
+    );
+  }
+
+  return (
+    <Routes>
+      <Route path="/" element={<DashboardPlaceholder />} />
+      <Route path="/setup" element={<SetupWizard initialStep={initialStep} />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  );
+}
+
 export default function App() {
   return (
     <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<DashboardPlaceholder />} />
-        <Route path="/setup" element={<SetupWizard />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+      <AppRoutes />
     </BrowserRouter>
   );
 }

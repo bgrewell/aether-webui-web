@@ -1,7 +1,5 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import type { ManagedNode, CheckResult } from '../types/api';
-
-const STORAGE_KEY = 'aether_wizard_state';
 
 export interface WizardData {
   currentStep: number;
@@ -14,37 +12,21 @@ export interface WizardData {
   deploymentStarted: boolean;
 }
 
-const DEFAULT_STATE: WizardData = {
-  currentStep: 0,
-  nodes: [],
-  nodeVerification: {},
-  excludedNodeIds: [],
-  preflightResults: [],
-  preflightPassed: false,
-  roleAssignments: {},
-  deploymentStarted: false,
-};
-
-function loadState(): WizardData {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return { ...DEFAULT_STATE, ...JSON.parse(raw) };
-  } catch {
-    // ignore corrupt state
-  }
-  return DEFAULT_STATE;
+function defaultState(initialStep: number): WizardData {
+  return {
+    currentStep: initialStep,
+    nodes: [],
+    nodeVerification: {},
+    excludedNodeIds: [],
+    preflightResults: [],
+    preflightPassed: false,
+    roleAssignments: {},
+    deploymentStarted: false,
+  };
 }
 
-function saveState(state: WizardData) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-}
-
-export function useWizardState() {
-  const [data, setData] = useState<WizardData>(loadState);
-
-  useEffect(() => {
-    saveState(data);
-  }, [data]);
+export function useWizardState(initialStep = 0) {
+  const [data, setData] = useState<WizardData>(() => defaultState(initialStep));
 
   const update = useCallback((partial: Partial<WizardData>) => {
     setData((prev) => ({ ...prev, ...partial }));
@@ -54,10 +36,5 @@ export function useWizardState() {
     setData((prev) => ({ ...prev, currentStep: step }));
   }, []);
 
-  const resetWizard = useCallback(() => {
-    setData(DEFAULT_STATE);
-    localStorage.removeItem(STORAGE_KEY);
-  }, []);
-
-  return { data, update, setStep, resetWizard };
+  return { data, update, setStep };
 }
