@@ -1,6 +1,6 @@
 import type { ApiError } from '../types/api';
 
-const BASE_URL = '/api/v1';
+const BASE_URL = `${import.meta.env.VITE_BACKEND_URL ?? 'http://127.0.0.1:8186'}/api/v1`;
 
 export class ApiRequestError extends Error {
   status: number;
@@ -39,7 +39,7 @@ async function handleResponse<T>(res: Response): Promise<T> {
 }
 
 export async function get<T>(path: string, params?: Record<string, string | number>): Promise<T> {
-  const url = new URL(`${BASE_URL}${path}`, window.location.origin);
+  const url = new URL(`${BASE_URL}${path}`);
   if (params) {
     Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, String(v)));
   }
