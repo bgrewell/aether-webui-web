@@ -218,9 +218,9 @@ export default function ConfigReview({ data, update }: ConfigReviewProps) {
         </div>
       )}
 
-      {!data.defaultsLoading && data.configDefaultsErrors.length > 0 && (
+      {!data.defaultsLoading && (data.configDefaultsErrors ?? []).length > 0 && (
         <div className="mb-5 space-y-2">
-          {data.configDefaultsErrors.map((err, idx) => (
+          {(data.configDefaultsErrors ?? []).map((err, idx) => (
             <div
               key={idx}
               className="flex items-start gap-2.5 p-3 bg-amber-50 border border-amber-200 rounded-lg"
@@ -235,9 +235,9 @@ export default function ConfigReview({ data, update }: ConfigReviewProps) {
         </div>
       )}
 
-      {!data.defaultsLoading && data.configDefaultsApplied.length > 0 && (
+      {!data.defaultsLoading && (data.configDefaultsApplied ?? []).length > 0 && (
         <div className="mb-5">
-          <AppliedDefaultsPanel applied={data.configDefaultsApplied} />
+          <AppliedDefaultsPanel applied={data.configDefaultsApplied ?? []} />
         </div>
       )}
 
@@ -251,7 +251,7 @@ export default function ConfigReview({ data, update }: ConfigReviewProps) {
                 label={SECTION_LABELS[key] ?? key.toUpperCase()}
                 sectionData={sectionData as Record<string, unknown>}
                 onChange={(path, value) => handleFieldChange(key, path, value)}
-                defaultsApplied={data.configDefaultsApplied}
+                defaultsApplied={data.configDefaultsApplied ?? []}
               />
             ))}
           </div>

@@ -109,8 +109,8 @@ export default function SetupWizard({ initialStep = 0 }: SetupWizardProps) {
         .then((result) => {
           update({
             onrampConfig: result.config,
-            configDefaultsApplied: result.applied,
-            configDefaultsErrors: result.errors,
+            configDefaultsApplied: result.applied ?? [],
+            configDefaultsErrors: result.errors ?? [],
             defaultsLoading: false,
           });
         })
