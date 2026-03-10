@@ -10,7 +10,7 @@ import {
   Monitor,
 } from 'lucide-react';
 import { listNodes, createNode, deleteNode } from '../../api/nodes';
-import { syncInventory, executeAction, getTask } from '../../api/onramp';
+import { syncInventory } from '../../api/onramp';
 import type { WizardData } from '../../hooks/useWizardState';
 import type { ManagedNode } from '../../types/api';
 import AddNodeModal from './AddNodeModal';
@@ -42,7 +42,10 @@ export default function NodeSelection({ data, update }: NodeSelectionProps) {
         const localhost = await createNode({
           name: 'localhost',
           ansible_host: '127.0.0.1',
-          ansible_user: 'root',
+          ansible_user: 'aether',
+          password: 'aether',
+          sudo_password: 'aether',
+          roles: null,
         });
         nodeList.unshift(localhost);
       }
@@ -60,9 +63,9 @@ export default function NodeSelection({ data, update }: NodeSelectionProps) {
           id: 'localhost',
           name: 'localhost',
           ansible_host: '127.0.0.1',
-          ansible_user: 'root',
-          has_password: false,
-          has_sudo_password: false,
+          ansible_user: 'aether',
+          has_password: true,
+          has_sudo_password: true,
           has_ssh_key: false,
           roles: null,
           created_at: new Date().toISOString(),
@@ -137,34 +140,12 @@ export default function NodeSelection({ data, update }: NodeSelectionProps) {
         ansible_user: values.user,
         password: values.password || undefined,
         sudo_password: values.password || undefined,
+        roles: null,
       });
 
       const updatedNodes = [...data.nodes, node];
       const updatedVerification = { ...data.nodeVerification, [node.id]: 'pending' as const };
       update({ nodes: updatedNodes, nodeVerification: updatedVerification });
-
-      try {
-        await syncInventory();
-        const task = await executeAction('cluster', 'pingall');
-
-        let finished = false;
-        while (!finished) {
-          await new Promise((r) => setTimeout(r, 1500));
-          const result = await getTask(task.id);
-          if (result.status !== 'running' && result.status !== 'pending') {
-            finished = true;
-            updatedVerification[node.id] = result.exit_code === 0 ? 'verified' : 'failed';
-            update({ nodeVerification: { ...updatedVerification } });
-            if (result.exit_code !== 0) {
-              throw new Error('Connection verification failed. Check credentials and try again.');
-            }
-          }
-        }
-      } catch (err) {
-        updatedVerification[node.id] = 'failed';
-        update({ nodeVerification: { ...updatedVerification } });
-        throw err;
-      }
     },
     [data.nodes, data.nodeVerification, update]
   );

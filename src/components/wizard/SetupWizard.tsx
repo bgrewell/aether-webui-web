@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import Stepper, { type StepDef } from './Stepper';
 import WizardNav from './WizardNav';
 import NodeSelection from '../steps/NodeSelection';
@@ -8,6 +8,7 @@ import Deployment from '../steps/Deployment';
 import { useWizardState } from '../../hooks/useWizardState';
 import { useHealthCheck } from '../../hooks/useHealthCheck';
 import AlertBanner from '../shared/AlertBanner';
+import { syncInventory } from '../../api/onramp';
 
 const STEPS: StepDef[] = [
   { label: 'Nodes', description: 'Select hosts' },
@@ -20,6 +21,7 @@ export default function SetupWizard() {
   const health = useHealthCheck();
   const { data, update, setStep } = useWizardState();
   const { currentStep } = data;
+  const [continueLoading, setContinueLoading] = useState(false);
 
   const includedNodes = useMemo(() => {
     const excl = new Set(data.excludedNodeIds);
@@ -45,8 +47,18 @@ export default function SetupWizard() {
     if (currentStep > 0) setStep(currentStep - 1);
   }, [currentStep, setStep]);
 
-  const handleContinue = useCallback(() => {
+  const handleContinue = useCallback(async () => {
     if (currentStep < STEPS.length - 1) {
+      if (currentStep === 0) {
+        setContinueLoading(true);
+        try {
+          await syncInventory();
+        } catch {
+          // proceed even if sync fails
+        } finally {
+          setContinueLoading(false);
+        }
+      }
       setStep(currentStep + 1);
     }
   }, [currentStep, setStep]);
@@ -110,6 +122,7 @@ export default function SetupWizard() {
                 onBack={handleBack}
                 onContinue={handleContinue}
                 continueLabel={continueLabel}
+                loading={continueLoading}
               />
             )}
           </div>
