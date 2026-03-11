@@ -8,7 +8,7 @@ export interface HealthCheckState {
   checkedUrl: string;
 }
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL ?? 'http://127.0.0.1:8186';
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL ?? window.location.origin;
 
 export function useHealthCheck(): HealthCheckState {
   const checkedUrl = `${BACKEND_URL}/healthz`;
