@@ -1,21 +1,15 @@
 import { useState, useEffect } from 'react';
 import { Info } from 'lucide-react';
-import { get } from '../../api/client';
-
-interface BackendVersionInfo {
-  version: string;
-  build_date: string;
-  branch: string;
-  commit_hash: string;
-}
+import { getVersion } from '../../api/meta';
+import type { VersionInfo } from '../../types/api';
 
 export default function VersionIndicator() {
   const [showDetails, setShowDetails] = useState(false);
-  const [backend, setBackend] = useState<BackendVersionInfo | null>(null);
+  const [backend, setBackend] = useState<VersionInfo | null>(null);
 
   useEffect(() => {
     if (!showDetails || backend) return;
-    get<BackendVersionInfo>('/meta/version')
+    getVersion()
       .then(setBackend)
       .catch(() => {});
   }, [showDetails, backend]);
