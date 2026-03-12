@@ -3,15 +3,10 @@ import {
   Plus,
   Trash2,
   Server,
-  CheckCircle,
-  XCircle,
   Loader2,
-  RefreshCw,
   Monitor,
-  AlertCircle,
 } from 'lucide-react';
 import { listNodes, createNode, deleteNode } from '../../api/nodes';
-import { syncInventory, executeAction, getTask } from '../../api/onramp';
 import type { WizardData } from '../../hooks/useWizardState';
 import type { ManagedNode } from '../../types/api';
 import AddNodeModal from './AddNodeModal';
@@ -21,39 +16,12 @@ interface NodeSelectionProps {
   update: (partial: Partial<WizardData>) => void;
 }
 
-function parseAnsibleRecap(
-  output: string,
-  nodes: ManagedNode[]
-): Record<string, 'verified' | 'failed'> {
-  const results: Record<string, 'verified' | 'failed'> = {};
-  const recapSection = output.match(/PLAY RECAP[^\n]*\n([\s\S]+?)(?:\n\n|$)/);
-  if (!recapSection) return results;
-
-  const lines = recapSection[1].split('\n').filter((l) => l.trim());
-  for (const line of lines) {
-    const match = line.match(
-      /^(\S+)\s+:\s+ok=(\d+)\s+changed=\d+\s+unreachable=(\d+)\s+failed=(\d+)/
-    );
-    if (!match) continue;
-    const [, hostname, , unreachable, failed] = match;
-    const node = nodes.find((n) => n.name === hostname || n.ansible_host === hostname);
-    if (node) {
-      results[node.id] =
-        parseInt(unreachable) === 0 && parseInt(failed) === 0 ? 'verified' : 'failed';
-    }
-  }
-  return results;
-}
-
 export default function NodeSelection({ data, update }: NodeSelectionProps) {
   const [showAddModal, setShowAddModal] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [verifyingAll, setVerifyingAll] = useState(false);
-  const [verifyError, setVerifyError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const excluded = new Set(data.excludedNodeIds);
-  const includedCount = data.nodes.filter((n) => !excluded.has(n.id)).length;
 
   const loadNodes = useCallback(async () => {
     setLoading(true);
@@ -122,75 +90,6 @@ export default function NodeSelection({ data, update }: NodeSelectionProps) {
     [data.excludedNodeIds, excluded, update]
   );
 
-  const verifyNodes = useCallback(async () => {
-    setVerifyingAll(true);
-    setVerifyError(null);
-
-    const markAllPending: Record<string, 'pending' | 'verified' | 'failed'> = {};
-    data.nodes.forEach((n) => {
-      markAllPending[n.id] = 'pending';
-    });
-    update({ nodeVerification: markAllPending });
-
-    try {
-      await syncInventory();
-      const task = await executeAction('cluster', 'pingall');
-
-      let finished = false;
-      let attempts = 0;
-      const maxAttempts = 240;
-
-      while (!finished && attempts < maxAttempts) {
-        await new Promise((r) => setTimeout(r, 1500));
-        attempts++;
-        const result = await getTask(task.id);
-
-        if (result.status !== 'running' && result.status !== 'pending') {
-          finished = true;
-
-          const perNode = parseAnsibleRecap(result.output ?? '', data.nodes);
-          const verification: Record<string, 'pending' | 'verified' | 'failed'> = {};
-
-          data.nodes.forEach((n) => {
-            if (perNode[n.id] !== undefined) {
-              verification[n.id] = perNode[n.id];
-            } else {
-              verification[n.id] = result.exit_code === 0 ? 'verified' : 'failed';
-            }
-          });
-
-          update({ nodeVerification: verification });
-
-          const anyFailed = Object.values(verification).some((s) => s === 'failed');
-          if (anyFailed) {
-            setVerifyError(
-              'One or more nodes failed connectivity checks. Verify SSH credentials and network access.'
-            );
-          }
-        }
-      }
-
-      if (!finished) {
-        const verification: Record<string, 'pending' | 'verified' | 'failed'> = {};
-        data.nodes.forEach((n) => {
-          verification[n.id] = 'failed';
-        });
-        update({ nodeVerification: verification });
-        setVerifyError('Verification timed out. The backend may be unresponsive.');
-      }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Verification failed';
-      setVerifyError(msg);
-      const verification: Record<string, 'pending' | 'verified' | 'failed'> = {};
-      data.nodes.forEach((n) => {
-        verification[n.id] = 'failed';
-      });
-      update({ nodeVerification: verification });
-    } finally {
-      setVerifyingAll(false);
-    }
-  }, [data.nodes, update]);
-
   const handleAddNode = useCallback(
     async (values: { name: string; host: string; user: string; password: string }) => {
       const node = await createNode({
@@ -232,22 +131,6 @@ export default function NodeSelection({ data, update }: NodeSelectionProps) {
 
   const isLocalhost = (n: ManagedNode) =>
     n.ansible_host === '127.0.0.1' || n.ansible_host === 'localhost';
-
-  const statusIcon = (nodeId: string) => {
-    const status = data.nodeVerification[nodeId];
-    if (status === 'verified') return <CheckCircle size={16} className="text-emerald-500" />;
-    if (status === 'failed') return <XCircle size={16} className="text-red-500" />;
-    if (verifyingAll) return <Loader2 size={16} className="text-sky-500 animate-spin" />;
-    return <div className="w-4 h-4 rounded-full border-2 border-gray-300" />;
-  };
-
-  const statusLabel = (nodeId: string) => {
-    const status = data.nodeVerification[nodeId];
-    if (status === 'verified') return 'Verified';
-    if (status === 'failed') return 'Failed';
-    if (verifyingAll) return 'Checking...';
-    return 'Not checked';
-  };
 
   if (loading) {
     return (
@@ -334,22 +217,6 @@ export default function NodeSelection({ data, update }: NodeSelectionProps) {
                 </p>
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">
-                {!isExcluded && (
-                  <div className="flex items-center gap-1.5">
-                    {statusIcon(node.id)}
-                    <span
-                      className={`text-xs font-medium ${
-                        data.nodeVerification[node.id] === 'verified'
-                          ? 'text-emerald-600'
-                          : data.nodeVerification[node.id] === 'failed'
-                            ? 'text-red-600'
-                            : 'text-gray-400'
-                      }`}
-                    >
-                      {statusLabel(node.id)}
-                    </span>
-                  </div>
-                )}
                 {!isLocalhost(node) && (
                   <button
                     onClick={() => handleDelete(node)}
@@ -369,13 +236,6 @@ export default function NodeSelection({ data, update }: NodeSelectionProps) {
         })}
       </div>
 
-      {verifyError && (
-        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
-          <AlertCircle size={15} className="text-red-500 flex-shrink-0 mt-0.5" />
-          <p className="text-sm text-red-700">{verifyError}</p>
-        </div>
-      )}
-
       <div className="flex items-center gap-3">
         <button
           onClick={() => setShowAddModal(true)}
@@ -384,16 +244,6 @@ export default function NodeSelection({ data, update }: NodeSelectionProps) {
           <Plus size={16} />
           Add Node
         </button>
-        {includedCount > 0 && (
-          <button
-            onClick={verifyNodes}
-            disabled={verifyingAll}
-            className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40 transition-colors"
-          >
-            <RefreshCw size={14} className={verifyingAll ? 'animate-spin' : ''} />
-            {verifyingAll ? 'Verifying...' : 'Verify All'}
-          </button>
-        )}
       </div>
 
       <AddNodeModal

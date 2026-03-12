@@ -10,9 +10,10 @@ import Deployment from '../steps/Deployment';
 import { useWizardState } from '../../hooks/useWizardState';
 import { useHealthCheck } from '../../hooks/useHealthCheck';
 import AlertBanner from '../shared/AlertBanner';
-import { syncInventory, applyConfigDefaults } from '../../api/onramp';
+import { syncInventory, executeAction, applyConfigDefaults } from '../../api/onramp';
 import { listNodes } from '../../api/nodes';
 import { markStepComplete } from '../../api/wizard';
+import { getDeployStepsForRoles } from '../../config/deployOrder';
 
 const STEPS: StepDef[] = [
   { label: 'Nodes', description: 'Select hosts' },
@@ -24,10 +25,9 @@ const STEPS: StepDef[] = [
 
 interface SetupWizardProps {
   initialStep?: number;
-  activeTask?: { id: string; component: string; action: string } | null;
 }
 
-export default function SetupWizard({ initialStep = 0, activeTask = null }: SetupWizardProps) {
+export default function SetupWizard({ initialStep = 0 }: SetupWizardProps) {
   const health = useHealthCheck();
   const navigate = useNavigate();
   const { data, update, setStep } = useWizardState(initialStep);
@@ -61,12 +61,22 @@ export default function SetupWizard({ initialStep = 0, activeTask = null }: Setu
     return data.nodes.filter((n) => !excl.has(n.id));
   }, [data.nodes, data.excludedNodeIds]);
 
+  const allRoles = useMemo(
+    () => [...new Set(includedNodes.flatMap((n) => data.roleAssignments[n.id] ?? []))],
+    [data.roleAssignments, includedNodes]
+  );
+
+  const deploySteps = useMemo(() => getDeployStepsForRoles(allRoles), [allRoles]);
+
   const canContinue = useMemo(() => {
     switch (currentStep) {
       case 0:
         return includedNodes.length > 0;
-      case 1:
-        return data.preflightPassed;
+      case 1: {
+        const allIncludedNodesVerified = includedNodes.length > 0 &&
+          includedNodes.every((n) => data.nodeVerification[n.id] === 'verified');
+        return data.preflightPassed && allIncludedNodesVerified;
+      }
       case 2:
         return true;
       case 3:
@@ -76,11 +86,19 @@ export default function SetupWizard({ initialStep = 0, activeTask = null }: Setu
       default:
         return false;
     }
-  }, [currentStep, includedNodes, data.preflightPassed, data.defaultsLoading]);
+  }, [currentStep, includedNodes, data.preflightPassed, data.defaultsLoading, data.nodeVerification]);
+
+  const handleStepClick = useCallback(
+    (step: number) => {
+      if (!data.deploymentStarted) setStep(step);
+    },
+    [data.deploymentStarted, setStep]
+  );
 
   const handleBack = useCallback(() => {
+    if (data.deploymentStarted) return;
     if (currentStep > 0) setStep(currentStep - 1);
-  }, [currentStep, setStep]);
+  }, [currentStep, data.deploymentStarted, setStep]);
 
   const handleContinue = useCallback(async () => {
     if (currentStep >= STEPS.length - 1) return;
@@ -126,13 +144,24 @@ export default function SetupWizard({ initialStep = 0, activeTask = null }: Setu
     }
   }, [currentStep, setStep, update]);
 
-  const handleDeployComplete = useCallback(async () => {
-    try {
-      await markStepComplete('deployment');
-    } catch {
+  const handleStartDeploy = useCallback(async () => {
+    update({ deploymentStarted: true });
+
+    try { await syncInventory(); } catch { /* best effort */ }
+
+    if (deploySteps.length > 0) {
+      const firstStep = deploySteps[0];
+      try {
+        await executeAction(firstStep.component, firstStep.action);
+      } catch {
+        // banner will detect and handle
+      }
     }
+
+    try { await markStepComplete('deployment'); } catch { /* best effort */ }
+
     navigate('/', { replace: true });
-  }, [navigate]);
+  }, [deploySteps, navigate, update]);
 
   const renderStep = () => {
     switch (currentStep) {
@@ -145,7 +174,7 @@ export default function SetupWizard({ initialStep = 0, activeTask = null }: Setu
       case 3:
         return <ConfigReview data={data} update={update} />;
       case 4:
-        return <Deployment data={data} update={update} onDeployComplete={handleDeployComplete} activeTask={activeTask} />;
+        return <Deployment data={data} deploySteps={deploySteps} onStartDeploy={handleStartDeploy} />;
       default:
         return null;
     }
@@ -174,20 +203,19 @@ export default function SetupWizard({ initialStep = 0, activeTask = null }: Setu
       <AlertBanner health={health} />
 
       <div className="max-w-4xl mx-auto w-full flex-1 flex flex-col">
-        <Stepper steps={STEPS} currentStep={currentStep} />
+        <Stepper steps={STEPS} currentStep={currentStep} onStepClick={handleStepClick} />
         <div className="flex-1 px-4 pb-4">
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col min-h-[480px]">
             <div className="flex-1 p-6 sm:p-8">{renderStep()}</div>
-            {currentStep < STEPS.length - 1 && (
-              <WizardNav
-                currentStep={currentStep}
-                totalSteps={STEPS.length}
-                canContinue={canContinue}
-                onBack={handleBack}
-                onContinue={handleContinue}
-                loading={continueLoading}
-              />
-            )}
+            <WizardNav
+              currentStep={currentStep}
+              totalSteps={STEPS.length}
+              canContinue={canContinue}
+              onBack={handleBack}
+              onContinue={handleContinue}
+              loading={continueLoading}
+              hideContinue={currentStep === STEPS.length - 1}
+            />
           </div>
         </div>
       </div>
