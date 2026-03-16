@@ -169,6 +169,20 @@ export default function SetupWizard({ initialStep = 0 }: SetupWizardProps) {
     navigate('/dashboard', { replace: true });
   }, [deploySteps, navigate, update]);
 
+  const handleSkipSetup = useCallback(async () => {
+    try {
+      await markStepComplete('deployment');
+      await markStepComplete('nodes');
+      await markStepComplete('preflight');
+      await markStepComplete('roles');
+      await markStepComplete('config');
+      await markStepComplete('deployment');
+    } catch {
+      // proceed even if marking fails
+    }
+    navigate('/dashboard', { replace: true });
+  }, [navigate]);
+
   const renderStep = () => {
     switch (currentStep) {
       case 0:
@@ -221,6 +235,7 @@ export default function SetupWizard({ initialStep = 0 }: SetupWizardProps) {
               canContinue={canContinue}
               onBack={handleBack}
               onContinue={handleContinue}
+              onSkip={handleSkipSetup}
               loading={continueLoading}
               hideContinue={currentStep === STEPS.length - 1}
             />
