@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { AlertTriangle } from 'lucide-react';
 import Stepper, { type StepDef } from './Stepper';
 import WizardNav from './WizardNav';
 import DeploymentSetup from '../steps/DeploymentSetup';
@@ -11,6 +12,7 @@ import Deployment from '../steps/Deployment';
 import { useWizardState } from '../../hooks/useWizardState';
 import { useHealthCheck } from '../../hooks/useHealthCheck';
 import AlertBanner from '../shared/AlertBanner';
+import Modal from '../shared/Modal';
 import { syncInventory, executeAction, applyConfigDefaults } from '../../api/onramp';
 import { listNodes } from '../../api/nodes';
 import { markStepComplete } from '../../api/wizard';
@@ -35,6 +37,7 @@ export default function SetupWizard({ initialStep = 0 }: SetupWizardProps) {
   const { data, update, setStep } = useWizardState(initialStep);
   const { currentStep } = data;
   const [continueLoading, setContinueLoading] = useState(false);
+  const [showSkipWarning, setShowSkipWarning] = useState(false);
 
   useEffect(() => {
     if (initialStep > 0 && data.nodes.length === 0) {
@@ -169,7 +172,12 @@ export default function SetupWizard({ initialStep = 0 }: SetupWizardProps) {
     navigate('/dashboard', { replace: true });
   }, [deploySteps, navigate, update]);
 
-  const handleSkipSetup = useCallback(async () => {
+  const handleSkipSetup = useCallback(() => {
+    setShowSkipWarning(true);
+  }, []);
+
+  const confirmSkipSetup = useCallback(async () => {
+    setShowSkipWarning(false);
     try {
       await markStepComplete('deployment');
       await markStepComplete('nodes');
@@ -251,6 +259,51 @@ export default function SetupWizard({ initialStep = 0 }: SetupWizardProps) {
           )}
         </div>
       </div>
+
+      <Modal
+        open={showSkipWarning}
+        onClose={() => setShowSkipWarning(false)}
+        title="Skip Setup Wizard?"
+      >
+        <div className="space-y-4">
+          <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+            <AlertTriangle className="text-amber-600 mt-0.5 flex-shrink-0" size={20} />
+            <div className="text-sm text-amber-800">
+              <strong className="font-semibold">For Advanced Users Only</strong>
+            </div>
+          </div>
+
+          <div className="text-sm text-gray-700 space-y-3">
+            <p>
+              The setup wizard helps you configure your system and verify that all requirements are met before deployment.
+              Skipping these steps may result in:
+            </p>
+            <ul className="list-disc list-inside space-y-1 ml-2">
+              <li>Missing or incorrect system configuration</li>
+              <li>Undetected compatibility issues</li>
+              <li>Deployment failures or unexpected behavior</li>
+            </ul>
+            <p>
+              Only skip this wizard if you have manually configured the system and verified all prerequisites.
+            </p>
+          </div>
+
+          <div className="flex gap-3 pt-2">
+            <button
+              onClick={() => setShowSkipWarning(false)}
+              className="flex-1 px-4 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              Go Back to Setup
+            </button>
+            <button
+              onClick={confirmSkipSetup}
+              className="flex-1 px-4 py-2.5 text-sm font-medium text-white bg-amber-600 rounded-lg hover:bg-amber-700 transition-colors"
+            >
+              Skip Anyway
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
