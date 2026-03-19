@@ -31,8 +31,8 @@ const NAV_ITEMS: NavItem[] = [
     path: '/dashboard',
   },
   {
-    id: 'deployment',
-    label: 'Deployment',
+    id: 'deploy',
+    label: 'Deploy',
     icon: Server,
     path: '/dashboard/deployment',
   },
