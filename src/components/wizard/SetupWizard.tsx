@@ -133,7 +133,7 @@ export default function SetupWizard({ initialStep = 0 }: SetupWizardProps) {
     setStep(currentStep + 1);
 
     if (currentStep === 3) {
-      update({ defaultsLoading: true, configDefaultsErrors: [], configDefaultsApplied: [] });
+      update({ defaultsLoading: true, onrampConfig: null, configDefaultsErrors: [], configDefaultsApplied: [] });
       const components = rolesToComponents(allRoles);
       composeConfig(components)
         .then(() => applyConfigDefaults())
