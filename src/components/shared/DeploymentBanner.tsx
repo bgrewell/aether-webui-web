@@ -9,6 +9,7 @@ import {
   Ban,
   Rocket,
   Square,
+  X,
 } from 'lucide-react';
 import { listDeployments, cancelDeployment } from '../../api/onramp';
 import { useDeploymentPoller } from '../../hooks/useDeploymentPoller';
@@ -49,6 +50,7 @@ export default function DeploymentBanner() {
   const [monitorActionId, setMonitorActionId] = useState<string | null>(null);
   const [monitorLabel, setMonitorLabel] = useState('');
   const [canceling, setCanceling] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
 
   const { deployment, error: pollError } = useDeploymentPoller(activeDeploymentId);
   const { task, error: taskError, reset: resetPoller } = useTaskPoller(monitorActionId);
@@ -139,7 +141,7 @@ export default function DeploymentBanner() {
     }
   };
 
-  if (bannerState === 'loading' || bannerState === 'idle') return null;
+  if (bannerState === 'loading' || bannerState === 'idle' || dismissed) return null;
 
   const barColor =
     bannerState === 'succeeded'
@@ -160,10 +162,10 @@ export default function DeploymentBanner() {
           : 'text-sky-800';
 
   return (
-    <div className={`border-b ${barColor}`}>
+    <div className={`relative border-b ${barColor}`}>
       <button
         onClick={() => setExpanded((e) => !e)}
-        className={`w-full flex items-center gap-3 px-6 py-3 text-left ${barTextColor}`}
+        className={`w-full flex items-center gap-3 pl-6 pr-12 py-3 text-left ${barTextColor}`}
       >
         {bannerState === 'active' && <Loader2 size={16} className="animate-spin flex-shrink-0" />}
         {bannerState === 'succeeded' && <CheckCircle size={16} className="flex-shrink-0" />}
@@ -182,6 +184,14 @@ export default function DeploymentBanner() {
         )}
 
         {expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+      </button>
+
+      <button
+        onClick={() => setDismissed(true)}
+        className={`absolute right-3 top-1/2 -translate-y-1/2 p-1.5 rounded-md opacity-50 hover:opacity-100 transition-opacity ${barTextColor}`}
+        aria-label="Dismiss banner"
+      >
+        <X size={14} />
       </button>
 
       {expanded && deployment && (
