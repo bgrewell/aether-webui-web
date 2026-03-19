@@ -44,6 +44,19 @@ function setPath(
   };
 }
 
+function countEditableFields(obj: Record<string, unknown>): number {
+  let count = 0;
+  for (const v of Object.values(obj)) {
+    if (v === null || v === undefined) continue;
+    if (typeof v === 'object' && !Array.isArray(v)) {
+      count += countEditableFields(v as Record<string, unknown>);
+    } else {
+      count += 1;
+    }
+  }
+  return count;
+}
+
 interface SectionCardProps {
   sectionKey: string;
   label: string;
@@ -55,7 +68,7 @@ interface SectionCardProps {
 function SectionCard({ sectionKey, label, sectionData, onChange, defaultsApplied }: SectionCardProps) {
   const [open, setOpen] = useState(false);
   const sectionDefaults = defaultsApplied.filter((d) => d.field.startsWith(`${sectionKey}.`));
-  const fieldCount = Object.keys(sectionData).length;
+  const fieldCount = countEditableFields(sectionData);
 
   return (
     <div className="border border-gray-200 rounded-xl overflow-hidden">
