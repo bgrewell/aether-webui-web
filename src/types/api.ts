@@ -650,3 +650,9 @@ export interface ConfigDefaultsResult {
   errors: string[];
   config: Record<string, unknown>;
 }
+
+export interface ConfigComposeResult {
+  active_blueprints?: string[];
+  components: string[];
+  config: OnRampConfig;
+}

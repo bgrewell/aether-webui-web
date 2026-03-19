@@ -18,6 +18,7 @@ import type {
   RepoStatus,
   ProfileActivateResult,
   ConfigDefaultsResult,
+  ConfigComposeResult,
   DeployRequest,
   Deployment,
 } from '../types/api';
@@ -177,6 +178,14 @@ export function getProfile(name: string) {
 /** Copies the named profile to vars/main.yml, making it the active config. */
 export function activateProfile(name: string) {
   return post<ProfileActivateResult>(`/onramp/config/profiles/${name}/activate`);
+}
+
+/**
+ * Builds vars/main.yml from the base config plus selected component blueprints.
+ * Sections for unselected components are pruned and implicit dependencies expanded.
+ */
+export function composeConfig(components: string[]) {
+  return post<ConfigComposeResult>('/onramp/config/compose', { components });
 }
 
 /**

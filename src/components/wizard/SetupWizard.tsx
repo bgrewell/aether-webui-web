@@ -13,10 +13,11 @@ import { useWizardState } from '../../hooks/useWizardState';
 import { useHealthCheck } from '../../hooks/useHealthCheck';
 import AlertBanner from '../shared/AlertBanner';
 import Modal from '../shared/Modal';
-import { syncInventory, startDeployment, applyConfigDefaults } from '../../api/onramp';
+import { syncInventory, startDeployment, composeConfig, applyConfigDefaults } from '../../api/onramp';
 import { listNodes } from '../../api/nodes';
 import { markStepComplete } from '../../api/wizard';
 import { getDeployStepsForRoles } from '../../config/deployOrder';
+import { rolesToComponents } from '../../config/roles';
 
 const STEPS: StepDef[] = [
   { label: 'Deployment', description: 'Create deployment' },
@@ -133,7 +134,9 @@ export default function SetupWizard({ initialStep = 0 }: SetupWizardProps) {
 
     if (currentStep === 3) {
       update({ defaultsLoading: true, configDefaultsErrors: [], configDefaultsApplied: [] });
-      applyConfigDefaults()
+      const components = rolesToComponents(allRoles);
+      composeConfig(components)
+        .then(() => applyConfigDefaults())
         .then((result) => {
           update({
             onrampConfig: result.config,

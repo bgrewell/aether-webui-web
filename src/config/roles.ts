@@ -61,3 +61,21 @@ export const VISIBLE_ROLES = ROLES.filter((r) => !r.hidden);
 export function displayNameForRole(apiValue: string): string {
   return ROLES.find((r) => r.apiValue === apiValue)?.displayName ?? apiValue;
 }
+
+/**
+ * Maps assigned node roles to the component names expected by the compose
+ * endpoint. The 'master' role implies both k8s and 5gc; 'worker' has no
+ * corresponding compose component; all others map 1:1.
+ */
+export function rolesToComponents(roles: string[]): string[] {
+  const components = new Set<string>();
+  for (const role of roles) {
+    if (role === 'master') {
+      components.add('k8s');
+      components.add('5gc');
+    } else if (role !== 'worker') {
+      components.add(role);
+    }
+  }
+  return [...components];
+}
