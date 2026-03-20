@@ -1,14 +1,15 @@
-import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import {
   AlertCircle,
   Check,
   ChevronDown,
   ChevronRight,
   Loader2,
+  RefreshCw,
   Save,
   Info,
 } from 'lucide-react';
-import { patchOnrampConfig } from '../../api/onramp';
+import { patchOnrampConfig, applyConfigDefaults } from '../../api/onramp';
 import ConfigFieldEditor from './ConfigFieldEditor';
 import type { WizardData } from '../../hooks/useWizardState';
 import type { ConfigDefaultApplied } from '../../types/api';
@@ -180,6 +181,7 @@ export default function ConfigReview({ data, update }: ConfigReviewProps) {
   );
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [reloading, setReloading] = useState(false);
 
   // Sync localConfig whenever the upstream config changes (e.g. after
   // compose + apply-defaults finishes asynchronously). Replaces any
@@ -222,6 +224,22 @@ export default function ConfigReview({ data, update }: ConfigReviewProps) {
     }
   }, [localConfig, update]);
 
+  const handleReload = useCallback(async () => {
+    setReloading(true);
+    try {
+      const result = await applyConfigDefaults();
+      update({
+        onrampConfig: result.config,
+        configDefaultsApplied: result.applied ?? [],
+        configDefaultsErrors: result.errors ?? [],
+      });
+    } catch {
+      // leave existing config in place on error
+    } finally {
+      setReloading(false);
+    }
+  }, [update]);
+
   const sections = useMemo(() => {
     const cfg = localConfig ?? data.onrampConfig;
     if (!cfg) return [];
@@ -230,12 +248,24 @@ export default function ConfigReview({ data, update }: ConfigReviewProps) {
 
   return (
     <div>
-      <div className="mb-5">
-        <h2 className="text-xl font-semibold text-gray-900">Review Configuration</h2>
-        <p className="text-sm text-gray-500 mt-1">
-          Sensible defaults have been applied based on your nodes' network configuration. Review and
-          adjust any values before deployment.
-        </p>
+      <div className="mb-5 flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-xl font-semibold text-gray-900">Review Configuration</h2>
+          <p className="text-sm text-gray-500 mt-1">
+            Sensible defaults have been applied based on your nodes' network configuration. Review and
+            adjust any values before deployment.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={handleReload}
+          disabled={reloading || data.defaultsLoading}
+          title="Re-fetch defaults from nodes"
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex-shrink-0 mt-0.5"
+        >
+          <RefreshCw size={13} className={reloading ? 'animate-spin' : ''} />
+          {reloading ? 'Reloading...' : 'Reload'}
+        </button>
       </div>
 
       {data.defaultsLoading && (
